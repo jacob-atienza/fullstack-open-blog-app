@@ -1,31 +1,35 @@
-const mongoose = require('mongoose')
+const bcrypt = require('bcrypt')
+const router = require('express').Router()
+const User = require('../models/user')
 
-const userSchema = mongoose.Schema({
-	username: {
-		type: String,
-		minlength: 3,
-		required: true,
-		unique: true,
-	},
-	name: String,
-	passwordHash: String,
-	blogs: [
-		{
-			type: mongoose.Schema.Types.ObjectId,
-			ref: 'Blog',
-		},
-	],
+router.post('/', async (request, response) => {
+	const { username, name, password } = request.body
+
+	if (!password || password.length < 7) {
+		return response.status(400).json({ error: 'password missing or too short' })
+	}
+
+	const saltRounds = 10
+	const passwordHash = await bcrypt.hash(password, saltRounds)
+
+	const user = new User({
+		username,
+		name,
+		passwordHash,
+	})
+
+	const savedUser = await user.save()
+
+	response.status(201).json(savedUser)
 })
 
-userSchema.set('toJSON', {
-	transform: (document, returnedObject) => {
-		returnedObject.id = returnedObject._id.toString()
-		delete returnedObject._id
-		delete returnedObject.__v
-		delete returnedObject.passwordHash
-	},
+router.get('/', async (request, response) => {
+	const users = await User.find({}).populate('blogs', {
+		url: 1,
+		title: 1,
+		author: 1,
+	})
+	response.json(users)
 })
 
-const User = mongoose.model('User', userSchema)
-
-module.exports = User
+module.exports = router
